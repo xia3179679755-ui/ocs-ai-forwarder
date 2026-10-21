@@ -80,7 +80,31 @@ MOLLY_CHAIN=<强模型>:max:90000,<备用模型>:medium:30000
 如果验证失败，去读 logs/ 目录下当天的日志，把 [请求] [失败] [解析]
 这几行贴给我，不要凭猜测改代码。
 
-## 第六步：告诉我 OCS 怎么填
+## 第六步：创建桌面快捷方式（必须做）
+
+用户日常靠双击启动，所以要建一个桌面快捷方式，指向项目目录里的 start.cmd。
+
+Windows 上请用下面任一方式：
+
+- 方式 A：在文件管理器里进入项目目录，右键 start.cmd → 发送到 → 桌面快捷方式。
+- 方式 B：如果只能用命令行，创建一个 .vbs 脚本并执行它：
+
+```vbs
+Set WshShell = CreateObject("WScript.Shell")
+Set Lnk = WshShell.CreateShortcut("<桌面路径>\OCS 答题转发.lnk")
+Lnk.TargetPath = "<项目绝对路径>\start.cmd"
+Lnk.WorkingDirectory = "<项目绝对路径>"
+Lnk.Description = "OCS AI Answer Forwarder"
+Lnk.Save
+```
+
+快捷方式必须同时设置 TargetPath 和 WorkingDirectory，
+否则服务会在错误的目录里启动，读不到 .env。
+
+建好后告诉我快捷方式的完整路径，并说明：
+以后双击它就能启动，窗口要保持开着，关掉窗口就等于停掉服务。
+
+## 第七步：告诉我 OCS 怎么填
 
 把仓库里 ocs-answerer-config.js 的内容给我，并说明：
 把它填进 OCS 的「设置 → 题库 → 自定义题库」，
