@@ -30,8 +30,8 @@ test('returns the primary model answer in OCS format', async () => {
     fetchImpl,
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 100,
     totalTimeoutMs: 500
   });
@@ -40,11 +40,11 @@ test('returns the primary model answer in OCS format', async () => {
     code: 1,
     question: '1 + 2 = ?',
     answer: 'B',
-    model: 'gpt6.1sol',
+    model: 'primary-model',
     reasoningEffort: 'low'
   });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].body.model, 'gpt6.1sol');
+  assert.equal(calls[0].body.model, 'primary-model');
   assert.equal(calls[0].body.reasoning_effort, 'low');
   assert.equal(calls[0].body.max_tokens, 64);
 });
@@ -54,7 +54,7 @@ test('switches to the fallback model after a primary timeout', async () => {
   const fetchImpl = (url, options) => {
     const body = JSON.parse(options.body);
     calls.push(body.model);
-    if (body.model === 'gpt6.1sol') {
+    if (body.model === 'primary-model') {
       return new Promise(() => {});
     }
     return Promise.resolve(jsonResponse({
@@ -66,16 +66,16 @@ test('switches to the fallback model after a primary timeout', async () => {
     fetchImpl,
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 20,
     totalTimeoutMs: 300
   });
 
   assert.equal(result.code, 1);
   assert.equal(result.answer, 'B');
-  assert.equal(result.model, 'gpt6sol');
-  assert.deepEqual(calls, ['gpt6.1sol', 'gpt6sol']);
+  assert.equal(result.model, 'backup-model');
+  assert.deepEqual(calls, ['primary-model', 'backup-model']);
 });
 
 test('uses a separate fallback timeout budget after the primary times out', async () => {
@@ -83,7 +83,7 @@ test('uses a separate fallback timeout budget after the primary times out', asyn
   const fetchImpl = (url, options) => {
     const body = JSON.parse(options.body);
     calls.push(body.model);
-    if (body.model === 'gpt6.1sol') return new Promise(() => {});
+    if (body.model === 'primary-model') return new Promise(() => {});
     return new Promise((resolve) => {
       setTimeout(() => resolve(jsonResponse({
         choices: [{ message: { content: '{"answer":"B"}' } }]
@@ -95,8 +95,8 @@ test('uses a separate fallback timeout budget after the primary times out', asyn
     fetchImpl,
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 20,
     fallbackTimeoutMs: 100,
     totalTimeoutMs: 200
@@ -104,8 +104,8 @@ test('uses a separate fallback timeout budget after the primary times out', asyn
 
   assert.equal(result.code, 1);
   assert.equal(result.answer, 'B');
-  assert.equal(result.model, 'gpt6sol');
-  assert.deepEqual(calls, ['gpt6.1sol', 'gpt6sol']);
+  assert.equal(result.model, 'backup-model');
+  assert.deepEqual(calls, ['primary-model', 'backup-model']);
 });
 
 test('applies the timeout while reading the upstream response body', async () => {
@@ -119,7 +119,7 @@ test('applies the timeout while reading the upstream response body', async () =>
       fetchImpl,
       apiKey: 'test-key',
       baseUrl: 'https://example.test/v1',
-      primaryModel: 'gpt6.1sol',
+      primaryModel: 'primary-model',
       fallbackModel: '',
       primaryTimeoutMs: 20,
       fallbackTimeoutMs: 20,
@@ -146,8 +146,8 @@ test('normalizes multiple choice answers to the OCS separator', async () => {
     fetchImpl,
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 100,
     totalTimeoutMs: 500
   });
@@ -166,8 +166,8 @@ test('emits request, model, and result logs with elapsed time', async () => {
     logger: (event) => events.push(event),
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 100,
     totalTimeoutMs: 500
   });
@@ -181,7 +181,7 @@ test('emits request, model, and result logs with elapsed time', async () => {
   ]);
   assert.equal(events[0].question, '1 + 2 = ?');
   assert.equal(events[0].questionType, 'single');
-  assert.equal(events[1].model, 'gpt6.1sol');
+  assert.equal(events[1].model, 'primary-model');
   assert.equal(events[2].rawAnswer, 'B');
   assert.equal(events[2].answer, 'B');
   assert.equal(events[2].matched, 'yes');
@@ -446,7 +446,7 @@ test('switches models when the answer letter is not in the OCS options', async (
     const body = JSON.parse(options.body);
     calls.push(body.model);
     return jsonResponse({
-      choices: [{ message: { content: body.model === 'gpt6.1sol' ? '{"answer":"E"}' : '{"answer":"B"}' } }]
+      choices: [{ message: { content: body.model === 'primary-model' ? '{"answer":"E"}' : '{"answer":"B"}' } }]
     });
   };
 
@@ -454,16 +454,16 @@ test('switches models when the answer letter is not in the OCS options', async (
     fetchImpl,
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 100,
     totalTimeoutMs: 500
   });
 
   assert.equal(result.code, 1);
   assert.equal(result.answer, 'B');
-  assert.equal(result.model, 'gpt6sol');
-  assert.deepEqual(calls, ['gpt6.1sol', 'gpt6sol']);
+  assert.equal(result.model, 'backup-model');
+  assert.deepEqual(calls, ['primary-model', 'backup-model']);
 });
 
 test('reports an unmatched answer instead of returning a fake letter', async () => {
@@ -477,8 +477,8 @@ test('reports an unmatched answer instead of returning a fake letter', async () 
     logger: (event) => events.push(event),
     apiKey: 'test-key',
     baseUrl: 'https://example.test/v1',
-    primaryModel: 'gpt6.1sol',
-    fallbackModel: 'gpt6sol',
+    primaryModel: 'primary-model',
+    fallbackModel: 'backup-model',
     primaryTimeoutMs: 100,
     totalTimeoutMs: 500
   });
