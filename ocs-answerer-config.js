@@ -11,7 +11,10 @@
     data: {
       title: "${title}",
       type: "${type}",
-      options: "${options}"
+      options: "${options}",
+      images: {
+        handler: "return (env)=> env.images || []"
+      }
     },
     handler: "return (res) => res.code === 1 ? [res.question, res.answer] : undefined"
   }
