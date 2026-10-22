@@ -5,7 +5,7 @@
 [![AI Deploy](https://img.shields.io/badge/%E9%83%A8%E7%BD%B2-AI%20%E4%B8%80%E9%94%AE%E4%BB%A3%E5%8A%9E-8A2BE2)](https://github.com/xia3179679755-ui/ocs-ai-forwarder/blob/main/AGENT_SETUP_PROMPT.md)
 [![Local](https://img.shields.io/badge/%E4%BB%85%E6%9C%AC%E5%9C%B0-127.0.0.1-0078D6)](https://github.com/xia3179679755-ui/ocs-ai-forwarder)
 
-一个极小的本地 HTTP 服务，把 OCS（Online Course Script）题库的答题请求转发给任意 OpenAI 兼容的 AI 接口，并把模型返回的答案转换成 OCS 能直接选中的格式。
+一个极小的本地 HTTP 服务，把 [OCS（Online Course Script，网课助手）](https://github.com/ocsjs/ocsjs)题库的答题请求转发给任意 OpenAI 兼容的 AI 接口，并把模型返回的答案转换成 OCS 能直接选中的格式。
 
 适用场景：给 OCS 的自定义题库接上 AI 自动答题。服务跑在本机 `http://127.0.0.1:8765`，不依赖任何公网中转，密钥只保存在你自己的 `.env` 里。
 
@@ -376,3 +376,15 @@ node --test test/*.test.mjs
 - 仓库里不预设任何模型名，避免泄露你正在使用的具体模型。
 - 日志输出前会过滤密钥形态。
 - 服务只监听 `127.0.0.1`，不对外暴露。
+
+## 相关项目与致谢
+
+本工具是 [OCS 网课助手](https://github.com/ocsjs/ocsjs)的**周边配套**，本身不是 OCS 的一部分，与 OCS 官方无隶属关系。使用前请先安装并了解 OCS：
+
+| 资源 | 地址 | 说明 |
+| --- | --- | --- |
+| OCS 脚本主仓库 | [ocsjs/ocsjs](https://github.com/ocsjs/ocsjs) | OCS 网课助手本体，支持超星学习通、知道智慧树、职教云、中国大学MOOC 等 |
+| OCS 官方文档 | [docs.ocsjs.com](https://docs.ocsjs.com/) | 安装教程（脚本管理器 + 开发者模式）、题库配置、使用说明 |
+| OCS 桌面端 | [ocsjs/ocs-desktop](https://github.com/ocsjs/ocs-desktop) | 官方桌面版脚本启动器，浏览器多开、自动执行 |
+
+> 本仓库解决的是其中一环：OCS 的「自定义题库」支持配置外部答题接口，本项目就是把这类请求转发给 AI 并对齐答案格式。OCS 本体及其题库协议的著作权归 OCS 官方所有。
