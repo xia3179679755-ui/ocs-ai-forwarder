@@ -643,6 +643,115 @@ test('falls back to max effort when the probe times out', async () => {
   assert.deepEqual(efforts, ['max']);
 });
 
+test('sends question images as multimodal content in the same order', async () => {
+  let content = null;
+  const fetchImpl = async (url, options) => {
+    content = JSON.parse(options.body).messages[1].content;
+    return jsonResponse({ choices: [{ message: { content: '{"answer":"A"}' } }] });
+  };
+
+  const result = await answerQuestion({
+    title: '下列哪个是 [图片1] 表示的运算？',
+    type: 'single',
+    // OCS 的图片选项通常不带字母前缀，这里按原文匹配。
+    options: '[图片1]\n[图片2]',
+    images: ['AAAABBBB', 'data:image/jpeg;base64,CCCC']
+  }, {
+    fetchImpl,
+    apiKey: 'test-key',
+    baseUrl: 'https://example.test/v1',
+    chain: [{ model: 'vision-model', effort: 'medium', timeoutMs: 200 }],
+    totalTimeoutMs: 500
+  });
+
+  assert.equal(result.code, 1);
+  assert.equal(result.answer, '[图片1]');
+  assert.ok(Array.isArray(content), '有图时 content 应该是数组');
+  assert.equal(content[0].type, 'text');
+  assert.match(content[0].text, /\[图片1\]/u);
+  assert.match(content[0].text, /1st attached image corresponds to \[图片1\]/u);
+  assert.deepEqual(content.slice(1), [
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAABBBB' } },
+    { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,CCCC' } }
+  ]);
+});
+
+test('uses a separate image chain when the question carries images', async () => {
+  const models = [];
+  const fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body);
+    models.push({ model: body.model, withImage: Array.isArray(body.messages[1].content) });
+    return jsonResponse({ choices: [{ message: { content: '{"answer":"A"}' } }] });
+  };
+
+  const base = {
+    fetchImpl,
+    apiKey: 'test-key',
+    baseUrl: 'https://example.test/v1',
+    chain: [{ model: 'text-model', effort: 'max', timeoutMs: 200 }],
+    chainImages: [{ model: 'vision-model', effort: 'medium', timeoutMs: 200 }],
+    totalTimeoutMs: 800
+  };
+
+  // 无图：走主链
+  const plain = await answerQuestion(question, { ...base });
+  assert.equal(plain.model, 'text-model');
+  assert.equal(models.at(-1).withImage, false);
+
+  // 有图：自动切到图片链，并把图片发出去
+  const withImage = await answerQuestion({
+    title: '下面哪个是 [图片1]？',
+    type: 'single',
+    options: '[图片1]\n[图片2]',
+    images: ['AAAABBBB']
+  }, { ...base });
+
+  assert.equal(withImage.model, 'vision-model');
+  assert.equal(withImage.reasoningEffort, 'medium');
+  assert.equal(models.at(-1).model, 'vision-model');
+  assert.equal(models.at(-1).withImage, true);
+});
+
+test('keeps the main chain for images when no image chain is configured', async () => {
+  const fetchImpl = async () => jsonResponse({
+    choices: [{ message: { content: '{"answer":"A"}' } }]
+  });
+
+  const result = await answerQuestion({
+    title: '下面哪个是 [图片1]？',
+    type: 'single',
+    options: '[图片1]\n[图片2]',
+    images: ['AAAABBBB']
+  }, {
+    fetchImpl,
+    apiKey: 'test-key',
+    baseUrl: 'https://example.test/v1',
+    chain: [{ model: 'text-model', effort: 'max', timeoutMs: 200 }],
+    totalTimeoutMs: 500
+  });
+
+  assert.equal(result.model, 'text-model');
+});
+
+test('sends plain text content when the question has no images', async () => {
+  let content = null;
+  const fetchImpl = async (url, options) => {
+    content = JSON.parse(options.body).messages[1].content;
+    return jsonResponse({ choices: [{ message: { content: '{"answer":"B"}' } }] });
+  };
+
+  await answerQuestion(question, {
+    fetchImpl,
+    apiKey: 'test-key',
+    baseUrl: 'https://example.test/v1',
+    chain: [{ model: 'text-model', effort: 'medium', timeoutMs: 200 }],
+    totalTimeoutMs: 500
+  });
+
+  assert.equal(typeof content, 'string');
+  assert.doesNotMatch(content, /attached image/u);
+});
+
 test('falls back to the backup model when the primary step fails', async () => {
   const calls = [];
   const fetchImpl = (url, options) => {

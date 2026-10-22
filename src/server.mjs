@@ -2,7 +2,8 @@ import http from 'node:http';
 
 import { answerQuestion, validateQuestion } from './gateway.mjs';
 
-const MAX_BODY_BYTES = 1024 * 1024;
+// 题目里可能带 base64 图片，1MB 根本不够，直接放到 20MB。
+const MAX_BODY_BYTES = 20 * 1024 * 1024;
 
 function sendJson(response, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -32,6 +33,17 @@ function questionKey(question) {
     String(question.type ?? '').trim().toLowerCase(),
     String(question.options ?? '').replace(/\r\n?/gu, '\n').trim()
   ]);
+}
+
+// 图片是 base64，直接进日志会刷屏，这里只记数量和体积。
+function payloadForLog(question) {
+  const images = Array.isArray(question.images) ? question.images : null;
+  if (!images) return JSON.stringify(question);
+  const bytes = images.reduce((sum, item) => sum + String(item ?? '').length, 0);
+  return JSON.stringify({
+    ...question,
+    images: `[${images.length} 张, 约 ${Math.round(bytes / 1024)} KB]`
+  });
 }
 
 async function readJson(request) {
@@ -104,7 +116,7 @@ export function createServer({ answerer = answerQuestion, logger, cache = null }
         type: 'question_payload',
         method: request.method,
         url: request.url,
-        payload: JSON.stringify(question)
+        payload: payloadForLog(question)
       });
       const key = questionKey(question);
 

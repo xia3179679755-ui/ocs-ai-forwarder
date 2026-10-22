@@ -21,7 +21,7 @@ export function formatLogEvent(event = {}) {
     case 'difficulty_probe_failed':
       return `${prefix} [探针] 模型=${clean(event.model)} 判断失败(${clean(event.error)})，改用默认思考强度 耗时=${event.elapsedMs}ms`;
     case 'question_received':
-      return `${prefix} [题目] 类型=${clean(event.questionType)} 难度=${clean(event.difficulty)} 链=${clean(event.chain, 200)} 题目=${clean(event.question)}${event.options ? ` 选项=${clean(event.options, 180)}` : ''}`;
+      return `${prefix} [题目] 类型=${clean(event.questionType)} 难度=${clean(event.difficulty)} 图片=${event.images ?? 0}张 链=${clean(event.chain, 200)} 题目=${clean(event.question)}${event.options ? ` 选项=${clean(event.options, 180)}` : ''}`;
     case 'model_started':
       return `${prefix} [请求] 第${event.step ?? 1}/${event.totalSteps ?? 1}档 模型=${clean(event.model)} 思考=${clean(event.reasoningEffort)} 输出上限=${event.maxTokens ?? '-'} 超时=${event.timeoutMs}ms`;
     case 'model_retry':

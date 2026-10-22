@@ -25,8 +25,18 @@ function optionBlock(question) {
   return String(question.options ?? '').trim() || '(none)';
 }
 
-function questionPrompt(question, difficulty) {
-  return [
+// OCS 新版会把题目里的图片抽出来单独传，题干里留下 [图片1] 这样的占位符。
+// 这里统一补成 data URL，顺序与占位符编号一一对应。
+function imageEntries(question) {
+  const list = Array.isArray(question.images) ? question.images : [];
+  return list
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .map((data) => (/^data:/iu.test(data) ? data : `data:image/png;base64,${data}`));
+}
+
+function questionPrompt(question, difficulty, imageCount = 0) {
+  const lines = [
     'Answer the question accurately.',
     'Return only a JSON object with this exact shape: {"answer":"..."}.',
     'The answer must be the option letter only, for example "B".',
@@ -36,7 +46,23 @@ function questionPrompt(question, difficulty) {
     `Difficulty level: ${difficulty.level}`,
     `Question: ${question.title}`,
     `Options:\n${optionBlock(question)}`
-  ].join('\n');
+  ];
+  if (imageCount > 0) {
+    lines.push(
+      `The question and options use [图片N] placeholders. ${imageCount} image(s) are attached below in order:`,
+      'the 1st attached image corresponds to [图片1], the 2nd to [图片2], and so on.'
+    );
+  }
+  return lines.join('\n');
+}
+
+// 有图时按 OpenAI 兼容的多模态格式发送：文字一段，图片依次追加。
+function userContent(text, images) {
+  if (!images.length) return text;
+  return [
+    { type: 'text', text },
+    ...images.map((url) => ({ type: 'image_url', image_url: { url } }))
+  ];
 }
 
 // 探针不答题，只判断这题需要多深的思考，输出越短越省时间。
@@ -178,7 +204,8 @@ export async function answerQuestion(question, options = {}) {
   const isNetworkError = (error) => error?.name === 'TypeError'
     || /fetch failed|socket|ECONN|other side closed|terminated/iu.test(String(error?.message ?? ''));
 
-  const callUpstream = (model, effort, prompt, maxTokens, timeoutMs) => fetchJsonWithTimeout(
+  // content 可以是纯文本，也可以是多模态的 [{type:'text'},{type:'image_url'}] 数组。
+  const callUpstream = (model, effort, content, maxTokens, timeoutMs) => fetchJsonWithTimeout(
     fetchImpl,
     endpointFor(config),
     {
@@ -193,13 +220,15 @@ export async function answerQuestion(question, options = {}) {
         max_tokens: maxTokens,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt }
+          { role: 'user', content }
         ]
       })
     },
     timeoutMs,
     controller.signal
   );
+
+  const images = imageEntries(question);
 
   // 第一步：让快模型用最低思考档判断这题该想多深，只花几秒。
   let autoEffort = '';
@@ -242,7 +271,13 @@ export async function answerQuestion(question, options = {}) {
   }
 
   // 第二步：按探针给出的深度，让正式模型作答。
-  const chain = resolveChain(config, difficulty, autoEffort);
+  // 带图题目走专门的链：不是所有模型都接受图片输入。
+  const useImageChain = images.length > 0 && Array.isArray(config.chainImages) && config.chainImages.length > 0;
+  const chain = resolveChain(
+    useImageChain ? { ...config, chain: config.chainImages } : config,
+    difficulty,
+    autoEffort
+  );
   if (!chain.length) return { code: 0, msg: 'no model configured' };
 
   emitLog(config.logger, {
@@ -251,6 +286,8 @@ export async function answerQuestion(question, options = {}) {
     questionType: String(question.type),
     options: String(question.options ?? ''),
     difficulty: probeLevel || difficulty.level,
+    images: images.length,
+    imageChain: useImageChain ? 'yes' : 'no',
     chain: chain.map((step) => `${step.model}/${step.effort}/${step.timeoutMs}ms`).join(' → '),
     models: chain.map((step) => step.model).join(','),
     model: chain[0].model,
@@ -274,7 +311,8 @@ export async function answerQuestion(question, options = {}) {
         return await callUpstream(
           step.model,
           step.effort,
-          questionPrompt(question, difficulty),
+          // 图片随题发送，占位符顺序与 images 数组一一对应。
+          userContent(questionPrompt(question, difficulty, images.length), images),
           config.maxTokens,
           remaining
         );

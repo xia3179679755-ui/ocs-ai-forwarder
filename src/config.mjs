@@ -46,12 +46,21 @@ function parseChain(value) {
   return steps;
 }
 
+// 带图题目单独一条链：实测并非每个模型都接受图片输入，
+// 有的会在收到 image_url 后直接断开连接。
+function parseChainImages(value, fallback) {
+  const steps = parseChain(value);
+  return steps.length ? steps : fallback;
+}
+
 export function loadConfig(env = process.env, envFile = path.resolve(process.cwd(), '.env')) {
   const fileValues = parseEnvFile(envFile);
   const values = { ...fileValues, ...env };
   const chain = parseChain(values.MOLLY_CHAIN);
 
   return {
+    // 题目带图片时改用这条链（留空则复用主链）。
+    chainImages: parseChainImages(values.MOLLY_CHAIN_IMAGES, []),
     apiKey: String(values.MOLLY_API_KEY ?? '').trim(),
     // 留空时必须由使用者在 .env 配置，代码里不预设任何具体服务商地址。
     baseUrl: String(values.MOLLY_BASE_URL ?? '').replace(/\/+$/u, ''),
